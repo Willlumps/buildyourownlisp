@@ -10,7 +10,7 @@ lval eval(mpc_ast_t *t) {
     // Check if there is some error in conversion
     if (strstr(t->tag, "number")) {
         errno = 0;
-        long x = strtol(t->contents, NULL, 10);
+        double x = strtod(t->contents, NULL);
         return errno != ERANGE ? lval_num(x) : lval_err(LERR_BAD_NUM);
     }
 
@@ -49,9 +49,16 @@ lval eval_op(lval x, char *op, lval y) {
     if (strcmp(op, "/") == 0) {
         return y.num == 0 ? lval_err(LERR_DIV_ZERO) : lval_num(x.num / y.num);
     }
-    if (strcmp(op, "%") == 0) { return lval_num(x.num % y.num); }
+    if (strcmp(op, "%") == 0) {
+        // Only allow modulo if both are "integers"
+        double xInt, yInt;
+        if (modf(x.num, &xInt) == 0 && modf(y.num, &yInt) == 0) {
+            return lval_num((int)x.num % (int)y.num);
+        }
+        return lval_err(LERR_MOD_FLOAT);
+    }
     if (strcmp(op, "^") == 0) {
-        return lval_num((long)pow((double)x.num, (double)y.num));
+        return lval_num(pow(x.num, y.num));
     }
     if (strcmp(op, "min") == 0) { return lval_num(MIN(x.num, y.num)); }
     if (strcmp(op, "max") == 0) { return lval_num(MAX(x.num, y.num)); }
@@ -90,7 +97,7 @@ int numBranches(mpc_ast_t *t) {
 }
 
 // Number type lval
-lval lval_num(long x) {
+lval lval_num(double x) {
     lval v;
     v.type = LVAL_NUM;
     v.num = x;
@@ -109,7 +116,7 @@ lval lval_err(int x) {
 void lval_print(lval v) {
     switch(v.type) {
         case LVAL_NUM:
-            printf("%li", v.num);
+            printf("%g", v.num);
             break;
         case LVAL_ERR:
             if (v.err == LERR_DIV_ZERO) {
@@ -120,6 +127,9 @@ void lval_print(lval v) {
             }
             if (v.err == LERR_BAD_NUM) {
                 printf("Error: Invalid Number.");
+            }
+            if (v.err == LERR_MOD_FLOAT) {
+                printf("Error: Cannot modulo type double.");
             }
         default:
             break;
