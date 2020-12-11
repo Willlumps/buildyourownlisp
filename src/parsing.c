@@ -5,67 +5,6 @@
 #include <editline/readline.h>
 #include "mpc.h"
 #include "parsing.h"
-/*
-lval eval(mpc_ast_t *t) {
-    // Check if there is some error in conversion
-    if (strstr(t->tag, "number")) {
-        errno = 0;
-        double x = strtod(t->contents, NULL);
-        return errno != ERANGE ? lval_num(x) : lval_err(LERR_BAD_NUM);
-    }
-
-    // Operator will be the second child since '(' is always the first in
-    // an expression.
-    char *op = t->children[1]->contents;
-
-    // Store the third child in x
-    lval x = eval(t->children[2]);
-
-    // Allow for a single argument for a '-' sign allowing negation
-    if (strcmp(op, "-") == 0 && t->children_num < 5) { return lval_num(0 - x.num); }
-
-    // Iterate over the remaining children
-    int i = 3;
-    while (strstr(t->children[i]->tag, "expr")) {
-        x = eval_op(x, op, eval(t->children[i]));
-        i++;
-    }
-
-    return x;
-}
-
-// Use operator string to see which operator to perform
-lval eval_op(lval x, char *op, lval y) {
-    #define MAX(x, y) (((x) > (y)) ? (x) : (y))
-    #define MIN(x, y) (((x) < (y)) ? (x) : (y))
-
-    if (x.type == LVAL_ERR) { return x; }
-    if (y.type == LVAL_ERR) { return y; }
-    if (strcmp(op, "+") == 0 || strcmp(op, "add") == 0) {
-        return lval_num(x.num + y.num);
-    }
-    if (strcmp(op, "-") == 0) { return lval_num(x.num - y.num); }
-    if (strcmp(op, "*") == 0) { return lval_num(x.num * y.num); }
-    if (strcmp(op, "/") == 0) {
-        return y.num == 0 ? lval_err(LERR_DIV_ZERO) : lval_num(x.num / y.num);
-    }
-    if (strcmp(op, "%") == 0) {
-        // Only allow modulo if both are "integers"
-        double xInt, yInt;
-        if (modf(x.num, &xInt) == 0 && modf(y.num, &yInt) == 0) {
-            return lval_num((int)x.num % (int)y.num);
-        }
-        return lval_err(LERR_MOD_FLOAT);
-    }
-    if (strcmp(op, "^") == 0) {
-        return lval_num(pow(x.num, y.num));
-    }
-    if (strcmp(op, "min") == 0) { return lval_num(MIN(x.num, y.num)); }
-    if (strcmp(op, "max") == 0) { return lval_num(MAX(x.num, y.num)); }
-
-    return lval_err(LERR_BAD_OP);
-}
-*/
 
 lval* lval_eval_sexpr(lval *v) {
     // Evaluate children
