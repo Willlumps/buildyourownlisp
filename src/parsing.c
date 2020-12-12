@@ -6,6 +6,8 @@
 #include "mpc.h"
 #include "parsing.h"
 
+// TODO: Make builtin_op less ugly
+
 lval* lval_eval_sexpr(lval *v) {
     // Evaluate children
     for (int i = 0; i < v->count; i++) {
@@ -66,7 +68,7 @@ lval* lval_take(lval *v, int i) {
 lval* builtin_op(lval *v, char* op) {
     // Make sure all arguments are numbers
     for (int i = 0; i < v->count; i++) {
-        if (v->cell[i]->type != LVAL_NUM) {
+        if (v->cell[i]->type == LVAL_ERR) {
             lval_del(v);
             return lval_err("Error, non-number in expression");
         }
@@ -77,7 +79,11 @@ lval* builtin_op(lval *v, char* op) {
 
     // If no arguments and sub then perform unary negation
     if ((strcmp(op, "-") == 0 && v->count == 0)) {
-        x->num = -x->num;
+        if (x->type == LVAL_NUM_LONG) {
+            x->num.num_long = -x->num.num_long;
+        } else {
+            x->num.num_double = -x->num.num_double;
+        }
     }
 
     // While there are still elements remaining
@@ -86,33 +92,72 @@ lval* builtin_op(lval *v, char* op) {
         #define MAX(x, y) (((x) > (y)) ? (x) : (y))
         #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
-        if (strcmp(op, "+") == 0 || strcmp(op, "add") == 0) {
-            x->num += y->num;
-        }
-        if (strcmp(op, "-") == 0) { x->num -= y->num; }
-        if (strcmp(op, "*") == 0) { x->num *= y->num; }
-        if (strcmp(op, "/") == 0) {
-            if (y->num == 0) {
-                lval_del(x);
-                lval_del(y);
-                return lval_err("Error: Divison by zero.");
+        // If one of the numbers is a double, do double stuff
+        if (x->type == LVAL_NUM_DOUBLE || y->type == LVAL_NUM_DOUBLE) {
+            // Cast them to double if they are a long
+            if (x->type == LVAL_NUM_LONG) {
+                double x_num = x->num.num_long;
+                x->num.num_double = x_num;
             }
-            x->num /= y->num;
-        }
-        if (strcmp(op, "%") == 0) {
-            // Only allow modulo if both are "integers"
-            double xInt, yInt;
-            if (modf(x->num, &xInt) == 0 && modf(y->num, &yInt) == 0) {
-                x->num = (int)x->num % (int)y->num;
-            } else {
+            if (y->type == LVAL_NUM_LONG) {
+                double y_num = y->num.num_long;
+                y->num.num_double = y_num;
+            }
+            if (strcmp(op, "+") == 0 || strcmp(op, "add") == 0) {
+                x->num.num_double += y->num.num_double;
+            }
+            if (strcmp(op, "-") == 0) { x->num.num_double -= y->num.num_double; }
+            if (strcmp(op, "*") == 0) { x->num.num_double *= y->num.num_double; }
+            if (strcmp(op, "/") == 0) {
+                if (y->num.num_double == 0) {
+                    lval_del(x);
+                    lval_del(y);
+                    return lval_err("Error: Divison by zero.");
+                }
+                x->num.num_double /= y->num.num_double;
+            }
+            if (strcmp(op, "%") == 0) {
                 return lval_err("Error: Non-integer modulo.");
             }
+            if (strcmp(op, "^") == 0) {
+                x->num.num_double = (pow(x->num.num_double, y->num.num_double));
+            }
+            if (strcmp(op, "min") == 0) {
+                return lval_num_double(MIN(x->num.num_double, y->num.num_double));
+            }
+            if (strcmp(op, "max") == 0) {
+                return lval_num_double(MAX(x->num.num_double, y->num.num_double));
+            }
         }
-        if (strcmp(op, "^") == 0) {
-            x->num = (pow(x->num, y->num));
+        // If neither are a double, they must be of type long
+        else {
+
+            if (strcmp(op, "+") == 0 || strcmp(op, "add") == 0) {
+                x->num.num_long += y->num.num_long;
+            }
+            if (strcmp(op, "-") == 0) { x->num.num_long -= y->num.num_long; }
+            if (strcmp(op, "*") == 0) { x->num.num_long *= y->num.num_long; }
+            if (strcmp(op, "/") == 0) {
+                if (y->num.num_long == 0) {
+                    lval_del(x);
+                    lval_del(y);
+                    return lval_err("Error: Divison by zero.");
+                }
+                x->num.num_long /= y->num.num_long;
+            }
+            if (strcmp(op, "%") == 0) {
+                x->num.num_long = x->num.num_long % y->num.num_long;
+            }
+            if (strcmp(op, "^") == 0) {
+                x->num.num_long = (pow(x->num.num_long, y->num.num_long));
+            }
+            if (strcmp(op, "min") == 0) {
+                x->num.num_long = MIN(x->num.num_long, y->num.num_long);
+            }
+            if (strcmp(op, "max") == 0) {
+                x->num.num_long = MAX(x->num.num_long, y->num.num_long);
+            }
         }
-        if (strcmp(op, "min") == 0) { return lval_num(MIN(x->num, y->num)); }
-        if (strcmp(op, "max") == 0) { return lval_num(MAX(x->num, y->num)); }
 
         lval_del(y);
     }
@@ -152,10 +197,17 @@ int numBranches(mpc_ast_t *t) {
 }
 
 // Number type lval
-lval* lval_num(double x) {
+lval* lval_num_long(long x) {
     lval *v = malloc(sizeof(lval));
-    v->type = LVAL_NUM;
-    v->num = x;
+    v->type = LVAL_NUM_LONG;
+    v->num.num_long = x;
+    return v;
+}
+
+lval* lval_num_double(double x) {
+    lval *v = malloc(sizeof(lval));
+    v->type = LVAL_NUM_DOUBLE;
+    v->num.num_double = x;
     return v;
 }
 
@@ -163,8 +215,8 @@ lval* lval_num(double x) {
 lval* lval_err(char* m) {
     lval *v = malloc(sizeof(lval));
     v->type = LVAL_ERR;
-    v->err = malloc(strlen(m) + 1);
-    strcpy(v->err, m);
+    v->num.err = malloc(strlen(m) + 1);
+    strcpy(v->num.err, m);
     return v;
 }
 
@@ -189,10 +241,11 @@ lval* lval_sexpr() {
 // Delete an lval
 void lval_del(lval *v) {
     switch (v->type) {
-        case LVAL_NUM:
+        case LVAL_NUM_LONG:
+        case LVAL_NUM_DOUBLE:
             break;
         case LVAL_ERR:
-            free(v->err);
+            free(v->num.err);
             break;
         case LVAL_SYM:
             free(v->sym);
@@ -211,8 +264,14 @@ void lval_del(lval *v) {
 
 lval* lval_read_num(mpc_ast_t *t) {
     errno = 0;
-    double x = strtod(t->contents, NULL);
-    return errno != ERANGE ? lval_num(x) : lval_err("invalid number");
+    if (strstr(t->contents, ".")) {
+        double x = strtod(t->contents, NULL);
+        return errno != ERANGE ? lval_num_double(x) : lval_err("invalid number");
+    } else {
+        long x = strtol(t->contents, NULL, 10);
+        return errno != ERANGE ? lval_num_long(x) : lval_err("invalid number");
+    }
+
 }
 
 lval *lval_read(mpc_ast_t *t) {
@@ -259,11 +318,14 @@ void lval_expr_print(lval *v, char open, char close) {
 // Print an "lval"
 void lval_print(lval *v) {
     switch(v->type) {
-        case LVAL_NUM:
-            printf("%g", v->num);
+        case LVAL_NUM_LONG:
+            printf("%li", v->num.num_long);
+            break;
+        case LVAL_NUM_DOUBLE:
+            printf("%g", v->num.num_double);
             break;
         case LVAL_ERR:
-            printf("Error: %s", v->err);
+            printf("Error: %s", v->num.err);
         case LVAL_SYM:
             printf("%s", v->sym);
             break;

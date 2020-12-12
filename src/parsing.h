@@ -5,15 +5,20 @@
 
 typedef struct lval {
     int type;
-    double num;
-    char* err;
+    union {
+        long num_long;
+        double num_double;
+        char* err;
+    } num;
+    //char* err;
     char* sym;
     int count;
     struct lval **cell;
 } lval;
 
 enum {
-    LVAL_NUM,
+    LVAL_NUM_LONG,
+    LVAL_NUM_DOUBLE,
     LVAL_ERR,
     LVAL_SYM,
     LVAL_SEXPR
@@ -30,7 +35,8 @@ lval* eval(mpc_ast_t *t);
 lval* eval_op(lval x, char *op, lval y);
 lval* lval_eval_sexpr(lval *v);
 lval* lval_eval(lval *v);
-lval* lval_num(double x);
+lval* lval_num_long(long x);
+lval* lval_num_double(double x);
 lval* lval_err(char* x);
 lval* lval_sym(char* s);
 lval* lval_sexpr(void);
