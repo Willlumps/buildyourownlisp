@@ -21,7 +21,8 @@ enum {
     LVAL_NUM_DOUBLE,
     LVAL_ERR,
     LVAL_SYM,
-    LVAL_SEXPR
+    LVAL_SEXPR,
+    LVAL_QEXPR
 };
 
 enum {
@@ -46,6 +47,16 @@ lval* lval_add(lval *v, lval *x);
 lval* lval_pop(lval *v, int i);
 lval* lval_take(lval *v, int i);
 lval* builtin_op(lval* a, char* op);
+
+lval* lval_qexpr(void);
+lval* builtin_head(lval *v);
+lval* builtin_tail(lval *v);
+lval* builtin_list(lval *v);
+lval* builtin_eval(lval *v);
+lval* builtin_join(lval *v);
+lval* lval_join(lval *x, lval *y);
+
+lval *builtin(lval *v, char* func);
 void lval_expr_print(lval *v, char open, char close);
 void lval_del(lval *v);
 void lval_print(lval *v);
