@@ -55,6 +55,7 @@ lval* builtin_list(lval *v);
 lval* builtin_eval(lval *v);
 lval* builtin_join(lval *v);
 lval* lval_join(lval *x, lval *y);
+lval* lval_init(lval *v);
 
 lval *builtin(lval *v, char* func);
 void lval_expr_print(lval *v, char open, char close);

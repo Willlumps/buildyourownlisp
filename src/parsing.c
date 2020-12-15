@@ -44,6 +44,8 @@ lval* lval_eval(lval *v) {
     return v;
 }
 
+// Extracts a single element from an expression at index i and shifts the
+// rest of the list backwards so it no longer contains that lval
 lval* lval_pop(lval *v, int i) {
     // Get item at index i
     lval *x = v->cell[i];
@@ -59,6 +61,8 @@ lval* lval_pop(lval *v, int i) {
     return x;
 }
 
+// Similar to lval_pop() but it deletes the list it has extracted the element
+// from.
 lval* lval_take(lval *v, int i) {
     lval *x = lval_pop(v, i);
     lval_del(v);
@@ -295,12 +299,27 @@ lval* lval_join(lval *x, lval *y) {
     return x;
 }
 
+// Returns an expression minus the last element
+lval* lval_init(lval *v) {
+    LASSERT(v, v->count == 1,
+        "Function 'tail' passed too many arguments");
+    LASSERT(v, v->cell[0]->type == LVAL_QEXPR,
+        "Function 'tail' passed incorrect type");
+    LASSERT(v, v->cell[0]->count != 0,
+        "Function 'tail' passed empty expression");
+
+    lval *x = lval_pop(v, 0);
+    lval_del(lval_pop(x, x->count - 1));
+    return x;
+}
+
 lval* builtin(lval *v, char* func) {
     if (strcmp("list", func) == 0) { return builtin_list(v); }
     if (strcmp("head", func) == 0) { return builtin_head(v); }
     if (strcmp("tail", func) == 0) { return builtin_tail(v); }
     if (strcmp("join", func) == 0) { return builtin_join(v); }
     if (strcmp("eval", func) == 0) { return builtin_eval(v); }
+    if (strcmp("init", func) == 0) { return lval_init(v); }
     if (strstr("+-/*^%", func)) { return builtin_op(v, func); }
     lval_del(v);
     return lval_err("Unknown Function");
@@ -462,9 +481,10 @@ int main(int argc, char** argv) {
         "                                                            \
             number   : /-?[0-9]+(\\.[0-9])*/;                        \
             symbol : '+' | '-' | '*' | '/' | '%' | '^' |             \
-                       \"add\" | \"sub\" | \"mul\" | \"div\" |               \
-                       \"max\" | \"min\" |                               \
-                       \"list\" | \"head\" | \"tail\" | \"join\" | \"eval\" ;  \
+                       \"add\" | \"sub\" | \"mul\" | \"div\" |       \
+                       \"max\" | \"min\" |                           \
+                       \"list\" | \"head\" | \"tail\" | \"join\" |   \
+                       \"eval\" | \"cons\" | \"len\" | \"init\" ;    \
             sexpr    : '(' <expr>* ')' ;                             \
             qexpr    : '{' <expr>* '}' ;                             \
             expr     : <number> | <symbol> | <sexpr> | <qexpr> ;     \
