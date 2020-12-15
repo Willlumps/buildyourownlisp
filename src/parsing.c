@@ -300,7 +300,7 @@ lval* lval_join(lval *x, lval *y) {
 }
 
 // Returns an expression minus the last element
-lval* lval_init(lval *v) {
+lval* builtin_init(lval *v) {
     LASSERT(v, v->count == 1,
         "Function 'tail' passed too many arguments");
     LASSERT(v, v->cell[0]->type == LVAL_QEXPR,
@@ -313,13 +313,25 @@ lval* lval_init(lval *v) {
     return x;
 }
 
+// Appends a value to the front of a Q-Expression
+lval* builtin_cons(lval *v) {
+    lval *a = lval_pop(v, 0); // Value
+    lval *b = lval_pop(v, 0); // Expression
+    lval *c = lval_qexpr();
+    c = lval_add(c, a);
+    c = lval_join(c, b);
+    lval_del(v);
+    return c;
+}
+
 lval* builtin(lval *v, char* func) {
     if (strcmp("list", func) == 0) { return builtin_list(v); }
     if (strcmp("head", func) == 0) { return builtin_head(v); }
     if (strcmp("tail", func) == 0) { return builtin_tail(v); }
     if (strcmp("join", func) == 0) { return builtin_join(v); }
     if (strcmp("eval", func) == 0) { return builtin_eval(v); }
-    if (strcmp("init", func) == 0) { return lval_init(v); }
+    if (strcmp("init", func) == 0) { return builtin_init(v); }
+    if (strcmp("cons", func) == 0) { return builtin_cons(v); }
     if (strstr("+-/*^%", func)) { return builtin_op(v, func); }
     lval_del(v);
     return lval_err("Unknown Function");
