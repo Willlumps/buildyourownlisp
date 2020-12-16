@@ -8,6 +8,9 @@
 
 // TODO: Make builtin_op less ugly
 
+
+// Evalutes a passed S-Expression
+// Returns the evaluated expression
 lval* lval_eval_sexpr(lval *v) {
     // Evaluate children
     for (int i = 0; i < v->count; i++) {
@@ -38,6 +41,8 @@ lval* lval_eval_sexpr(lval *v) {
     return result;
 }
 
+
+// Evaluate an expression
 lval* lval_eval(lval *v) {
     if (v->type == LVAL_SEXPR) { return lval_eval_sexpr(v); }
 
@@ -45,7 +50,8 @@ lval* lval_eval(lval *v) {
 }
 
 // Extracts a single element from an expression at index i and shifts the
-// rest of the list backwards so it no longer contains that lval
+// rest of the list backwards so it no longer contains that element
+// Returns the extracted element
 lval* lval_pop(lval *v, int i) {
     // Get item at index i
     lval *x = v->cell[i];
@@ -63,12 +69,17 @@ lval* lval_pop(lval *v, int i) {
 
 // Similar to lval_pop() but it deletes the list it has extracted the element
 // from.
+// Returns the extracted element.
 lval* lval_take(lval *v, int i) {
     lval *x = lval_pop(v, i);
     lval_del(v);
     return x;
 }
 
+// Takes a single lval representing a list of all the arguments to operate on
+// And performs said operation until it exhuasts the list of arguments or
+// Encounters an error.
+// Returns the evaluated expression.
 lval* builtin_op(lval *v, char* op) {
     // Make sure all arguments are numbers
     for (int i = 0; i < v->count; i++) {
@@ -171,7 +182,7 @@ lval* builtin_op(lval *v, char* op) {
 }
 
 
-// Long type lval
+// Constructs an lval that contains an integer data type
 lval* lval_num_long(long x) {
     lval *v = malloc(sizeof(lval));
     v->type = LVAL_NUM_LONG;
@@ -179,7 +190,7 @@ lval* lval_num_long(long x) {
     return v;
 }
 
-// Double type lval
+// Constructs an lval that contains a double/float data type
 lval* lval_num_double(double x) {
     lval *v = malloc(sizeof(lval));
     v->type = LVAL_NUM_DOUBLE;
@@ -187,7 +198,7 @@ lval* lval_num_double(double x) {
     return v;
 }
 
-// Error type lval
+// Constructs an lval for when an error has been encountered
 lval* lval_err(char* m) {
     lval *v = malloc(sizeof(lval));
     v->type = LVAL_ERR;
@@ -226,6 +237,8 @@ lval* lval_qexpr() {
 #define LASSERT(args, cond, err) \
     if (!(cond)) { lval_del(args); return lval_err(err); }
 
+// Takes an lval as input and returns the first argument in the list, discarding
+// the rest.
 lval* builtin_head(lval *v) {
     // Check error conditions
     LASSERT(v, v->count == 1,
@@ -243,6 +256,8 @@ lval* builtin_head(lval *v) {
     return a;
 }
 
+// Takes an lval as input and removes the first element, returning a list
+// containing the rest.
 lval* builtin_tail(lval *v) {
     LASSERT(v, v->count == 1,
         "Function 'tail' passed too many arguments");
@@ -275,6 +290,7 @@ lval* builtin_eval(lval *v) {
     return lval_eval(a);
 }
 
+// Joins two Q-Expressions together
 lval* builtin_join(lval *v) {
     for (int i = 0; i < v->count; i++) {
     LASSERT(v, v->cell[i]->type == LVAL_QEXPR,
@@ -291,6 +307,7 @@ lval* builtin_join(lval *v) {
     return x;
 }
 
+// Helper function for builtin_join()
 lval* lval_join(lval *x, lval *y) {
     while (y->count) {
         x = lval_add(x, lval_pop(y, 0));
@@ -314,6 +331,7 @@ lval* builtin_init(lval *v) {
 }
 
 // Appends a value to the front of a Q-Expression
+// TODO: Add error checking for input
 lval* builtin_cons(lval *v) {
     lval *a = lval_pop(v, 0); // Value
     lval *b = lval_pop(v, 0); // Expression
@@ -324,6 +342,7 @@ lval* builtin_cons(lval *v) {
     return c;
 }
 
+// Calls the correct function depending on the function name passed
 lval* builtin(lval *v, char* func) {
     if (strcmp("list", func) == 0) { return builtin_list(v); }
     if (strcmp("head", func) == 0) { return builtin_head(v); }
@@ -362,6 +381,7 @@ void lval_del(lval *v) {
     free(v);
 }
 
+// Reads input from the AST and returns an lval of the correct data type
 lval* lval_read_num(mpc_ast_t *t) {
     errno = 0;
     if (strstr(t->contents, ".")) {
@@ -374,6 +394,7 @@ lval* lval_read_num(mpc_ast_t *t) {
 
 }
 
+// Reads input from the AST and stores it in the correct lval
 lval *lval_read(mpc_ast_t *t) {
     // If symbol or number, return conversion to that type
     if (strstr(t->tag, "number")) { return lval_read_num(t); }
@@ -406,6 +427,7 @@ lval* lval_add(lval *v, lval *x) {
     return v;
 }
 
+// Print an expression
 void lval_expr_print(lval *v, char open, char close) {
     putchar(open);
 
@@ -443,11 +465,13 @@ void lval_print(lval *v) {
     }
 }
 
+// Print a new line
 void lval_println(lval *v) {
     lval_print(v);
     printf("\n");
 }
 
+// Calculate the number of leaves on an AST
 int numLeaves(mpc_ast_t *t) {
     int count = 0;
 
@@ -466,6 +490,7 @@ int numLeaves(mpc_ast_t *t) {
     return count;
 }
 
+// Calculate the number of branches on an AST
 int numBranches(mpc_ast_t *t) {
     // Root
     int count = 0;
