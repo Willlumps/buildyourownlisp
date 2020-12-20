@@ -11,43 +11,43 @@ typedef struct lenv lenv;
 
 // Lisp Values
 enum {
-    LVAL_NUM_LONG,
-    LVAL_NUM_DOUBLE,
-    LVAL_ERR,
-    LVAL_SYM,
-    LVAL_FUN,
-    LVAL_SEXPR,
-    LVAL_QEXPR
+  LVAL_NUM_LONG,
+  LVAL_NUM_DOUBLE,
+  LVAL_ERR,
+  LVAL_SYM,
+  LVAL_FUN,
+  LVAL_SEXPR,
+  LVAL_QEXPR
 };
 
 typedef lval*(*lbuiltin)(lenv*, lval*);
 
 // Value struct
 struct lval {
-    int type;
-    union {
-        long num_long;
-        double num_double;
-        char* err;
-    } num;
-    char* sym;
-    lbuiltin fun;
-    int count;
-    struct lval **cell;
+  int type;
+  union {
+    long num_long;
+    double num_double;
+    char* err;
+  } num;
+  char* sym;
+  lbuiltin fun;
+  int count;
+  struct lval **cell;
 };
 
 // Enviornment struct
 struct lenv {
-    int count;
-    char** syms;
-    lval** vals;
+  int count;
+  char** syms;
+  lval** vals;
 };
 
 enum {
-    LERR_DIV_ZERO,
-    LERR_BAD_OP,
-    LERR_BAD_NUM,
-    LERR_MOD_FLOAT
+  LERR_DIV_ZERO,
+  LERR_BAD_OP,
+  LERR_BAD_NUM,
+  LERR_MOD_FLOAT
 };
 
 lval* eval(mpc_ast_t *t);
