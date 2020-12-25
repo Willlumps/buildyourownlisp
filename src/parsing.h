@@ -50,13 +50,21 @@ enum {
   LERR_MOD_FLOAT
 };
 
+#define LASSERT(args, cond, fmt, ...)         \
+  if (!(cond)) {                              \
+    lval* err = lval_err(fmt, ##__VA_ARGS__); \
+    lval_del(args);                           \
+    return err;                               \
+  }
+
+
 lval* eval(mpc_ast_t *t);
 lval* eval_op(lval x, char *op, lval y);
 lval* lval_eval_sexpr(lenv *e, lval *v);
 lval* lval_eval(lenv *e, lval *v);
 lval* lval_num_long(long x);
 lval* lval_num_double(double x);
-lval* lval_err(char* x);
+lval* lval_err(char* fmt, ...);
 lval* lval_sym(char* s);
 lval* lval_sexpr(void);
 lval* lval_read_num(mpc_ast_t *t);
@@ -97,6 +105,8 @@ void lenv_del(lenv *e);
 void lenv_add_builtin(lenv *e, char* name, lbuiltin func);
 void lenv_add_builtins(lenv *e);
 
+lval* builtin_def(lenv* e, lval* a);
+char* ltype_name(int t);
 int numLeaves(mpc_ast_t *t);
 int numBranches(mpc_ast_t *t);
 

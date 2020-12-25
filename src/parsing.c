@@ -93,6 +93,11 @@ lval* builtin_op(lenv *e, lval *v, char* op) {
     }
   }
 
+  LASSERT(v, v->cell[0]->type == LVAL_SYM,
+    "Function '%s' passed incorrect type for argument 0. "
+    "Got %s, Expected %s.",
+    op, ltype_name(v->cell[0]->type), ltype_name(LVAL_SYM));
+
   // Pop first element
   lval *x = lval_pop(v, 0);
 
@@ -239,6 +244,7 @@ lval* builtin_min(lenv *e, lval *a) {
 lval* builtin_max(lenv *e, lval *a) {
   return builtin_op(e, a, "max");
 }
+
 // Register all of our builtins into an environment.
 // Splits the task into lenv_add_builtin and lenv_add_builtins
 void lenv_add_builtin(lenv *e, char* name, lbuiltin func) {
@@ -260,6 +266,7 @@ void lenv_add_builtins(lenv *e) {
   lenv_add_builtin(e, "cons", builtin_cons);
   lenv_add_builtin(e, "min", builtin_min);
   lenv_add_builtin(e, "max", builtin_max);
+  lenv_add_builtin(e, "def", builtin_def);
 
   // Mathematical functions
   lenv_add_builtin(e, "+", builtin_add);
@@ -291,11 +298,23 @@ lval* lval_num_double(double x) {
 }
 
 // Constructs an lval for when an error has been encountered
-lval* lval_err(char* m) {
+lval* lval_err(char* fmt, ...) {
   lval *v = malloc(sizeof(lval));
   v->type = LVAL_ERR;
-  v->num.err = malloc(strlen(m) + 1);
-  strcpy(v->num.err, m);
+
+  // Create a new va list and initialize
+  va_list va;
+  va_start(va, fmt);
+
+  // Allocate 512 bytes of space
+  v->num.err = malloc(512);
+
+  // printf the error
+  vsnprintf(v->num.err, 511, fmt, va);
+
+  // Cleanup
+  va_end(va);
+
   return v;
 }
 
@@ -400,7 +419,7 @@ lval* lenv_get(lenv *e, lval *k) {
     }
   }
   // Otherwise return an error.
-  return lval_err("Error: unbound symbol");
+  return lval_err("Unbound Symbol '%s'", k->sym);
 }
 
 // Insert a variable into the environment
@@ -428,17 +447,18 @@ void lenv_put(lenv *e, lval *k, lval *v) {
   strcpy(e->syms[e->count - 1], k->sym);
 }
 
-#define LASSERT(args, cond, err) \
-  if (!(cond)) { lval_del(args); return lval_err(err); }
-
 // Takes an lval as input and returns the first argument in the list, discarding
 // the rest.
 lval* builtin_head(lenv *e, lval *v) {
   // Check error conditions
   LASSERT(v, v->count == 1,
-    "Function 'head' passed too many arguments");
+    "Function 'head' passed too many arguments. "
+    "Got %i, Expected %i.",
+    v->count, 1);
   LASSERT(v, v->cell[0]->type == LVAL_QEXPR,
-    "Function 'head' passed incorrect type");
+    "Function 'head' passed incorrect type for argument 0. "
+    "Got %s, Expected %s.",
+    ltype_name(v->cell[0]->type), ltype_name(LVAL_QEXPR));
   LASSERT(v, v->cell[0]->count != 0,
     "Function 'head' passed empty expression");
 
@@ -550,6 +570,54 @@ lval* builtin(lenv *e, lval *v, char* func) {
   return lval_err("Unknown Function");
 }
 
+// Allows the user to define their own variables
+lval* builtin_def(lenv *e, lval *a) {
+  LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
+    "Function 'def' passed incorredt type!");
+
+  // First argument is a symbol list
+  lval *syms = a->cell[0];
+
+  // Ensure all elements of first list are symbols
+  for (int i = 0; i < syms->count; i++) {
+    LASSERT(a, syms->cell[i]->type == LVAL_SYM,
+      "Function 'def' cannot define non-symbols");
+  }
+
+  // Check correct number of symobls and values
+  LASSERT(a, syms->count == a->count - 1,
+    "Function 'def' cannot define incorrect number of values to symbols");
+
+  for (int i = 0; i < syms->count; i++) {
+    lenv_put(e, syms->cell[i], a->cell[i+1]);
+  }
+
+  lval_del(a);
+  return lval_sexpr();
+}
+
+// Takes some enum and returns the string representation
+char* ltype_name(int t) {
+  switch(t) {
+    case LVAL_ERR:
+      return "Error";
+    case LVAL_FUN:
+      return "Function";
+    case LVAL_NUM_DOUBLE:
+      return "Double";
+    case LVAL_NUM_LONG:
+      return "Integer";
+    case LVAL_QEXPR:
+      return "Q-Expression";
+    case LVAL_SEXPR:
+      return "S-Expression";
+    case LVAL_SYM:
+      return "Symbol";
+    default:
+      return "Unknown";
+  }
+}
+
 // Delete an lval
 void lval_del(lval *v) {
   switch (v->type) {
@@ -648,6 +716,7 @@ void lval_print(lval *v) {
       break;
     case LVAL_ERR:
       printf("Error: %s", v->num.err);
+      break;
     case LVAL_SYM:
       printf("%s", v->sym);
       break;
@@ -717,11 +786,7 @@ int main(int argc, char** argv) {
   mpca_lang(MPCA_LANG_DEFAULT,
     "                                                         \
       number : /-?[0-9]+(\\.[0-9])*/;                         \
-      symbol : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&]+/ |             \
-                 \"add\" | \"sub\" | \"mul\" | \"div\" |      \
-                 \"max\" | \"min\" |                          \
-                 \"list\" | \"head\" | \"tail\" | \"join\" |  \
-                 \"eval\" | \"cons\" | \"len\" | \"init\" ;   \
+      symbol : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&]+/ ;             \
       sexpr  : '(' <expr>* ')' ;                              \
       qexpr  : '{' <expr>* '}' ;                              \
       expr   : <number> | <symbol> | <sexpr> | <qexpr> ;      \
