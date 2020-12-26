@@ -50,6 +50,7 @@ enum {
   LERR_MOD_FLOAT
 };
 
+// Builtin asserts
 #define LASSERT(args, cond, fmt, ...)         \
   if (!(cond)) {                              \
     lval* err = lval_err(fmt, ##__VA_ARGS__); \
@@ -57,6 +58,31 @@ enum {
     return err;                               \
   }
 
+#define LASSERT_TYPE(func, args, index, expect)            \
+  LASSERT(args, args->cell[index]->type == expect,         \
+    "Function %s passeed incorrect type for argument %i. " \
+    "Got %s, expected %s.",                                \
+    func, index, ltype_name(args->cell[index]->type),      \
+    ltype_name(expect))
+
+#define LASSERT_NUM(func, args, index)                          \
+  if(args->cell[index]->type != LVAL_NUM_LONG) {                \
+    if(args->cell[index]->type != LVAL_NUM_DOUBLE) {            \
+      LASSERT(args, args->cell[index]->type == LVAL_NUM_DOUBLE, \
+        "Function %s passed incorrect type for argument %d. "   \
+        "Got %s, expected Number.",                             \
+        func, index, ltype_name(args->cell[index]->type)); }}    \
+
+#define LASSERT_EMPTY_ARGS(func, args, index)               \
+  LASSERT(args, args->cell[0]->count != 0,                  \
+    "Function %s passed empty expression for argument %d.", \
+    func, index);                                           \
+
+#define LASSERT_NUM_ARGS(func, args, num)                \
+  LASSERT(args, args->count == num,                      \
+    "Function %s passed incorrect number of arguments. " \
+    "Got %d, expected %d.",                              \
+    func, args->count, num);                             \
 
 lval* eval(mpc_ast_t *t);
 lval* eval_op(lval x, char *op, lval y);

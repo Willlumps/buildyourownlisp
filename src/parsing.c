@@ -87,16 +87,8 @@ lval* lval_take(lval *v, int i) {
 lval* builtin_op(lenv *e, lval *v, char* op) {
   // Make sure all arguments are numbers
   for (int i = 0; i < v->count; i++) {
-    if (v->cell[i]->type == LVAL_ERR) {
-      lval_del(v);
-      return lval_err("Error, non-number in expression");
-    }
+    LASSERT_NUM(op, v, i);
   }
-
-  LASSERT(v, v->cell[0]->type == LVAL_SYM,
-    "Function '%s' passed incorrect type for argument 0. "
-    "Got %s, Expected %s.",
-    op, ltype_name(v->cell[0]->type), ltype_name(LVAL_SYM));
 
   // Pop first element
   lval *x = lval_pop(v, 0);
@@ -122,11 +114,15 @@ lval* builtin_op(lenv *e, lval *v, char* op) {
       if (x->type == LVAL_NUM_LONG) {
         double x_num = x->num.num_long;
         x->num.num_double = x_num;
+        x->type = LVAL_NUM_DOUBLE;
       }
       if (y->type == LVAL_NUM_LONG) {
         double y_num = y->num.num_long;
         y->num.num_double = y_num;
+        y->type = LVAL_NUM_DOUBLE;
       }
+      //LASSERT_TYPE(op, v, v->count, LVAL_NUM_LONG);
+      LASSERT_TYPE(op, v, v->count, LVAL_NUM_DOUBLE);
       if (strcmp(op, "+") == 0 || strcmp(op, "add") == 0) {
         x->num.num_double += y->num.num_double;
       }
@@ -147,7 +143,7 @@ lval* builtin_op(lenv *e, lval *v, char* op) {
       if (strcmp(op, "%") == 0) {
         return lval_err("Error: Non-integer modulo.");
       }
-      if (strcmp(op, "^") == 0) {
+      if (strcmp(op, "pow") == 0) {
         x->num.num_double = (pow(x->num.num_double, y->num.num_double));
       }
       if (strcmp(op, "min") == 0) {
@@ -179,7 +175,7 @@ lval* builtin_op(lenv *e, lval *v, char* op) {
       if (strcmp(op, "%") == 0) {
         x->num.num_long = x->num.num_long % y->num.num_long;
       }
-      if (strcmp(op, "^") == 0) {
+      if (strcmp(op, "pow") == 0) {
         x->num.num_long = (pow(x->num.num_long, y->num.num_long));
       }
       if (strcmp(op, "min") == 0) {
@@ -230,7 +226,7 @@ lval* builtin_div_full(lenv *e, lval *a) {
 }
 
 lval* builtin_pow(lenv *e, lval *a) {
-  return builtin_op(e, a, "^");
+  return builtin_op(e, a, "pow");
 }
 
 lval* builtin_mod(lenv *e, lval *a) {
@@ -270,11 +266,11 @@ void lenv_add_builtins(lenv *e) {
 
   // Mathematical functions
   lenv_add_builtin(e, "+", builtin_add);
-  lenv_add_builtin(e, "-", builtin_add);
-  lenv_add_builtin(e, "*", builtin_add);
-  lenv_add_builtin(e, "/", builtin_add);
-  lenv_add_builtin(e, "^", builtin_add);
-  lenv_add_builtin(e, "%", builtin_add);
+  lenv_add_builtin(e, "-", builtin_sub);
+  lenv_add_builtin(e, "*", builtin_mul);
+  lenv_add_builtin(e, "/", builtin_div);
+  lenv_add_builtin(e, "pow", builtin_pow);
+  lenv_add_builtin(e, "%", builtin_mod);
   lenv_add_builtin(e, "add", builtin_add_full);
   lenv_add_builtin(e, "sub", builtin_sub_full);
   lenv_add_builtin(e, "mul", builtin_mul_full);
@@ -451,16 +447,9 @@ void lenv_put(lenv *e, lval *k, lval *v) {
 // the rest.
 lval* builtin_head(lenv *e, lval *v) {
   // Check error conditions
-  LASSERT(v, v->count == 1,
-    "Function 'head' passed too many arguments. "
-    "Got %i, Expected %i.",
-    v->count, 1);
-  LASSERT(v, v->cell[0]->type == LVAL_QEXPR,
-    "Function 'head' passed incorrect type for argument 0. "
-    "Got %s, Expected %s.",
-    ltype_name(v->cell[0]->type), ltype_name(LVAL_QEXPR));
-  LASSERT(v, v->cell[0]->count != 0,
-    "Function 'head' passed empty expression");
+  LASSERT_TYPE("head", v, 0, LVAL_QEXPR);
+  LASSERT_EMPTY_ARGS("head", v, 0);
+  LASSERT_NUM_ARGS("head", v, 1)
 
   // Otherwise take the first argument
   lval *a = lval_take(v, 0);
@@ -473,12 +462,9 @@ lval* builtin_head(lenv *e, lval *v) {
 // Takes an lval as input and removes the first element, returning a list
 // containing the rest.
 lval* builtin_tail(lenv *e, lval *v) {
-  LASSERT(v, v->count == 1,
-    "Function 'tail' passed too many arguments");
-  LASSERT(v, v->cell[0]->type == LVAL_QEXPR,
-    "Function 'tail' passed incorrect type");
-  LASSERT(v, v->cell[0]->count != 0,
-    "Function 'tail' passed empty expression");
+  LASSERT_TYPE("tail", v, 0, LVAL_QEXPR);
+  LASSERT_EMPTY_ARGS("tail", v, 0);
+  LASSERT_NUM_ARGS("tail", v, 1)
 
   lval *a = lval_take(v, 0);
   lval_del(lval_pop(a, 0));
@@ -494,10 +480,8 @@ lval* builtin_list(lenv *e, lval *v) {
 // Takes as input a single Q-Expression, which it converts into an
 // S-Expression and evaluates using 'lval_eval'
 lval* builtin_eval(lenv *e, lval *v) {
-  LASSERT(v, v->count == 1,
-    "Function 'eval' passed too many arguments");
-  LASSERT(v, v->cell[0]->type == LVAL_QEXPR,
-    "Function 'eval' passed incorrect type");
+  LASSERT_TYPE("eval", v, 0, LVAL_QEXPR);
+  LASSERT_NUM_ARGS("eval", v, 1)
 
   lval *a = lval_take(v, 0);
   a->type = LVAL_SEXPR;
@@ -507,8 +491,7 @@ lval* builtin_eval(lenv *e, lval *v) {
 // Joins two Q-Expressions together
 lval* builtin_join(lenv *e, lval *v) {
   for (int i = 0; i < v->count; i++) {
-  LASSERT(v, v->cell[i]->type == LVAL_QEXPR,
-    "Function 'join' passed incorrect type");
+    LASSERT_TYPE("join", v, 0, LVAL_QEXPR);
   }
 
   lval *x = lval_pop(v, 0);
@@ -532,12 +515,9 @@ lval* lval_join(lval *x, lval *y) {
 
 // Returns an expression minus the last element
 lval* builtin_init(lenv *e, lval *v) {
-  LASSERT(v, v->count == 1,
-    "Function 'tail' passed too many arguments");
-  LASSERT(v, v->cell[0]->type == LVAL_QEXPR,
-    "Function 'tail' passed incorrect type");
-  LASSERT(v, v->cell[0]->count != 0,
-    "Function 'tail' passed empty expression");
+  LASSERT_TYPE("init", v, 0, LVAL_QEXPR);
+  LASSERT_EMPTY_ARGS("init", v, 0);
+  LASSERT_NUM_ARGS("init", v, 1)
 
   lval *x = lval_pop(v, 0);
   lval_del(lval_pop(x, x->count - 1));
@@ -545,8 +525,11 @@ lval* builtin_init(lenv *e, lval *v) {
 }
 
 // Appends a value to the front of a Q-Expression
-// TODO: Add error checking for input
 lval* builtin_cons(lenv *e, lval *v) {
+  LASSERT_NUM("cons", v, 0);
+  LASSERT_TYPE("cons", v, 1, LVAL_QEXPR);
+  LASSERT_NUM_ARGS("cons", v, 2)
+
   lval *a = lval_pop(v, 0); // Value
   lval *b = lval_pop(v, 0); // Expression
   lval *c = lval_qexpr();
@@ -565,7 +548,7 @@ lval* builtin(lenv *e, lval *v, char* func) {
   if (strcmp("eval", func) == 0) { return builtin_eval(e, v); }
   if (strcmp("init", func) == 0) { return builtin_init(e, v); }
   if (strcmp("cons", func) == 0) { return builtin_cons(e, v); }
-  if (strstr("+-/*^%minmax", func)) { return builtin_op(e, v, func); }
+  if (strstr("+-/*pow%minmax", func)) { return builtin_op(e, v, func); }
   lval_del(v);
   return lval_err("Unknown Function");
 }
