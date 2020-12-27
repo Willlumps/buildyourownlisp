@@ -26,7 +26,8 @@ lval* lval_eval_sexpr(lenv *e, lval *v) {
   if (v->count == 0) { return v; }
 
   // Single expression
-  if (v->count == 1) { return lval_take(v, 0); }
+  if (v->count == 1) {
+    return lval_take(v, 0); }
 
   // Ensure first element is a function after evaluation
   lval *f = lval_pop(v, 0);
@@ -45,12 +46,22 @@ lval* lval_eval_sexpr(lenv *e, lval *v) {
 // Evaluate an expression
 lval* lval_eval(lenv *e, lval *v) {
   if (v->type == LVAL_SYM) {
+    eval_single_expression(e, v);
     lval *x = lenv_get(e, v);
     lval_del(v);
     return x;
   }
   if (v->type == LVAL_SEXPR) { return lval_eval_sexpr(e, v); }
   return v;
+}
+
+void eval_single_expression(lenv *e, lval *v) {
+  if (strcmp(v->sym, "print") == 0) {
+    lenv_print(e);
+  }
+  if (strcmp(v->sym, "exit") == 0) {
+    exit(2);
+  }
 }
 
 // Extracts a single element from an expression at index i and shifts the
@@ -241,6 +252,11 @@ lval* builtin_max(lenv *e, lval *a) {
   return builtin_op(e, a, "max");
 }
 
+lval* builtin_print(lenv *e, lval *a) {
+  lenv_print(e);
+  return NULL;
+}
+
 // Register all of our builtins into an environment.
 // Splits the task into lenv_add_builtin and lenv_add_builtins
 void lenv_add_builtin(lenv *e, char* name, lbuiltin func) {
@@ -275,6 +291,9 @@ void lenv_add_builtins(lenv *e) {
   lenv_add_builtin(e, "sub", builtin_sub_full);
   lenv_add_builtin(e, "mul", builtin_mul_full);
   lenv_add_builtin(e, "div", builtin_div_full);
+  lenv_add_builtin(e, "print", NULL);
+  lenv_add_builtin(e, "exit", NULL);
+
 }
 
 // Constructs an lval that contains an integer data type
@@ -539,24 +558,9 @@ lval* builtin_cons(lenv *e, lval *v) {
   return c;
 }
 
-// Calls the correct function depending on the function name passed
-lval* builtin(lenv *e, lval *v, char* func) {
-  if (strcmp("list", func) == 0) { return builtin_list(e, v); }
-  if (strcmp("head", func) == 0) { return builtin_head(e, v); }
-  if (strcmp("tail", func) == 0) { return builtin_tail(e, v); }
-  if (strcmp("join", func) == 0) { return builtin_join(e, v); }
-  if (strcmp("eval", func) == 0) { return builtin_eval(e, v); }
-  if (strcmp("init", func) == 0) { return builtin_init(e, v); }
-  if (strcmp("cons", func) == 0) { return builtin_cons(e, v); }
-  if (strstr("+-/*pow%minmax", func)) { return builtin_op(e, v, func); }
-  lval_del(v);
-  return lval_err("Unknown Function");
-}
-
 // Allows the user to define their own variables
 lval* builtin_def(lenv *e, lval *a) {
-  LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
-    "Function 'def' passed incorredt type!");
+  LASSERT_TYPE("def", a, 0, LVAL_QEXPR);
 
   // First argument is a symbol list
   lval *syms = a->cell[0];
@@ -755,6 +759,12 @@ int numBranches(mpc_ast_t *t) {
   return count;
 }
 
+void lenv_print(lenv *e) {
+  for (int i = 0; i < e->count; i++) {
+    printf("Key: %s\n", e->syms[i]);
+  }
+}
+
 int main(int argc, char** argv) {
 
   // Create some parsers
@@ -778,7 +788,7 @@ int main(int argc, char** argv) {
     Number, Symbol, Sexpr, Qexpr, Expr, Lispy);
 
   printf("Lisp version 0.0.0.1\n");
-  printf("Ctrl-C to exit\n");
+  printf("Type Ctrl-C or 'exit' to exit\n");
 
   lenv *e = lenv_new();
   lenv_add_builtins(e);
@@ -791,6 +801,7 @@ int main(int argc, char** argv) {
       // On success print the result of the evaluation
       lval *x = lval_eval(e, lval_read(r.output));
       lval_println(x);
+      //lenv_print(e);
       lval_del(x);
       mpc_ast_delete(r.output);
     } else {

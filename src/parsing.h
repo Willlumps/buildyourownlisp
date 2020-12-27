@@ -132,6 +132,8 @@ void lenv_add_builtin(lenv *e, char* name, lbuiltin func);
 void lenv_add_builtins(lenv *e);
 
 lval* builtin_def(lenv* e, lval* a);
+void lenv_print(lenv *e);
+void eval_single_expression(lenv *e, lval *v);
 char* ltype_name(int t);
 int numLeaves(mpc_ast_t *t);
 int numBranches(mpc_ast_t *t);
